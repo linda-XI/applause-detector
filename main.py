@@ -16,6 +16,8 @@ from tensorflow.keras import layers
 from tensorflow.keras import models
 from IPython import display
 
+tf.print(tf.__version__)
+
 # Set the seed value for experiment reproducibility.
 seed = 42
 tf.random.set_seed(seed)
