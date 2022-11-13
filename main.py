@@ -32,3 +32,31 @@ if not data_dir.exists():
       origin="http://storage.googleapis.com/download.tensorflow.org/data/mini_speech_commands.zip",
       extract=True,
       cache_dir='.', cache_subdir='data')
+commands = np.array(tf.io.gfile.listdir(str(data_dir)))
+commands = commands[commands != 'README.md']
+print('Commands:', commands)
+
+train_ds, val_ds = tf.keras.utils.audio_dataset_from_directory(
+    directory=data_dir,
+    batch_size=64,
+    validation_split=0.2,
+    seed=0,
+    output_sequence_length=16000,
+    subset='both')
+
+label_names = np.array(train_ds.class_names)
+print()
+print("label names:", label_names)
+print(train_ds.element_spec)
+
+def squeeze(audio, labels):
+  audio = tf.squeeze(audio, axis=-1)
+  return audio, labels
+
+train_ds = train_ds.map(squeeze, tf.data.AUTOTUNE)
+val_ds = val_ds.map(squeeze, tf.data.AUTOTUNE)
+test_ds = val_ds.shard(num_shards=2, index=0)
+val_ds = val_ds.shard(num_shards=2, index=1)
+for example_audio, example_labels in train_ds.take(1):
+  print(example_audio.shape)
+  print(example_labels.shape)
