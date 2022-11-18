@@ -124,14 +124,61 @@ def get_spectrogram(waveform):
   spectrogram = spectrogram[..., tf.newaxis]
   return spectrogram
 
-for i in range(3):
-  label = label_names[example_labels[i]]
-  waveform = example_audio[i]
-  spectrogram = get_spectrogram(waveform)
+def plot_spectrogram(spectrogram, ax):
+  if len(spectrogram.shape) > 2:
+    assert len(spectrogram.shape) == 3
+    spectrogram = np.squeeze(spectrogram, axis=-1)
+  # Convert the frequencies to log scale and transpose, so that the time is
+  # represented on the x-axis (columns).
+  # Add an epsilon to avoid taking a log of zero.
+  log_spec = np.log(spectrogram.T + np.finfo(float).eps)
+  height = log_spec.shape[0]
+  width = log_spec.shape[1]
+  X = np.linspace(0, np.size(spectrogram), num=width, dtype=int)
+  Y = range(height)
+  ax.pcolormesh(X, Y, log_spec)
 
-  print('Label:', label)
-  print('Waveform shape:', waveform.shape)
-  print('Spectrogram shape:', spectrogram.shape)
-  print('Audio playback')
-  display.display(display.Audio(waveform, rate=16000))
+def make_spec_ds(ds):
+  return ds.map(
+      map_func=lambda audio,label: (get_spectrogram(audio), label),
+      num_parallel_calls=tf.data.AUTOTUNE)
+
+train_spectrogram_ds = make_spec_ds(train_ds)
+val_spectrogram_ds = make_spec_ds(val_ds)
+test_spectrogram_ds = make_spec_ds(test_ds)
+
+for example_spectrograms, example_spect_labels in train_spectrogram_ds.take(1):
+  break
+
+train_spectrogram_ds = train_spectrogram_ds.cache().shuffle(10000).prefetch(tf.data.AUTOTUNE)
+val_spectrogram_ds = val_spectrogram_ds.cache().prefetch(tf.data.AUTOTUNE)
+test_spectrogram_ds = test_spectrogram_ds.cache().prefetch(tf.data.AUTOTUNE)
+
+input_shape = example_spectrograms.shape[1:]
+print('Input shape:', input_shape)
+num_labels = len(commands)
+
+# Instantiate the `tf.keras.layers.Normalization` layer.
+norm_layer = layers.Normalization()
+# Fit the state of the layer to the spectrograms
+# with `Normalization.adapt`.
+norm_layer.adapt(data=train_spectrogram_ds.map(map_func=lambda spec, label: spec))
+
+model = models.Sequential([
+    layers.Input(shape=input_shape),
+    # Downsample the input.
+    layers.Resizing(32, 32),
+    # Normalize.
+    norm_layer,
+    layers.Conv2D(32, 3, activation='relu'),
+    layers.Conv2D(64, 3, activation='relu'),
+    layers.MaxPooling2D(),
+    layers.Dropout(0.25),
+    layers.Flatten(),
+    layers.Dense(128, activation='relu'),
+    layers.Dropout(0.5),
+    layers.Dense(num_labels),
+])
+
+model.summary()
 
