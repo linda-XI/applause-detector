@@ -180,5 +180,36 @@ model = models.Sequential([
     layers.Dense(num_labels),
 ])
 
-model.summary()
+print(model.summary())
+
+model.compile(
+    optimizer=tf.keras.optimizers.Adam(),
+    loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+    metrics=['accuracy'],
+)
+
+EPOCHS = 10
+history = model.fit(
+    train_spectrogram_ds,
+    validation_data=val_spectrogram_ds,
+    epochs=EPOCHS,
+    callbacks=tf.keras.callbacks.EarlyStopping(verbose=1, patience=2),
+)
+
+metrics = history.history
+plt.figure(figsize=(16,6))
+plt.subplot(1,2,1)
+plt.plot(history.epoch, metrics['loss'], metrics['val_loss'])
+plt.legend(['loss', 'val_loss'])
+plt.ylim([0, max(plt.ylim())])
+plt.xlabel('Epoch')
+plt.ylabel('Loss [CrossEntropy]')
+
+plt.subplot(1,2,2)
+plt.plot(history.epoch, 100*np.array(metrics['accuracy']), 100*np.array(metrics['val_accuracy']))
+plt.legend(['accuracy', 'val_accuracy'])
+plt.ylim([0, 100])
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy [%]')
+
 
